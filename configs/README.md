@@ -18,7 +18,13 @@ the dataset split without touching the code.
 - `training`: optimizer, scheduler, loader knobs, and a `finetune` block to declare
   which layers stay trainable (e.g., freeze the backbone and only update `layer4`
   + `fc`).
-- `defenses`: points at an adv-it-defenses YAML or declares an inline defense stack.
+- `defenses`: declare the defense stack (type/name/params) that should process the
+  sampled subset once before training. Outputs are stored under
+  `runs/<experiment>/defended/` and dataloaders read from those files. Supported
+  defense types today: quick inline transforms (`jpeg`, `bit-depth`, `grayscale`,
+  `low-pass`, `flip`) plus `r-smoe`, which wraps the adv-it-defenses R-SMOE
+  reconstruction pipeline. Extend `training/defenses.py` / `training/rsmoe.py` to
+  register additional defenses.
 - `output`: base directory plus checkpoint/metadata cadence.
 
 ## Sample Launch
@@ -38,5 +44,8 @@ Use `--imagenet-root` or `IMAGENET_ROOT` to pin a different base directory, and
 `IMAGENET_*_ROOT` env vars) to override individual directories when they are not
 nested under the inferred base.
 
-Override the defense config on the fly with `--defense-config` to reuse the
-same dataset/model split with a different advdef pipeline.
+Adjust the `defenses.stack` entries directly in YAML when you need to train with
+different transformations. When using `r-smoe`, install the adv-it-defenses
+submodule (`pip install -e external/adv-it-defenses[dev]`) and ensure the
+`external/r-smoe` assets referenced in the config are available; preprocessing
+will call the official R-SMOE pipeline once per sampled image before training.

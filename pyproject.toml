@@ -9,6 +9,10 @@ description = "Transfer-learning experiments that integrate adv-it-defenses"
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml>=6.0",
+    "torch>=2.1",
+    "torchvision>=0.16",
+    "tqdm>=4.66",
+    "Pillow>=10.2",
 ]
 
 [project.optional-dependencies]

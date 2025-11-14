@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import Dict, Tuple
 
 from .config import ExperimentConfig, load_experiment_config
+from .data import build_dataloaders, sample_dataset
 from .data_prep import ensure_imagenet_trainset
+from .engine import train_model
+from .preprocess import prepare_defended_splits
 
 ENV_BASE_ROOT = "IMAGENET_ROOT"
 ENV_TRAIN_ROOT = "IMAGENET_TRAIN_ROOT"
@@ -38,10 +41,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         help="Overrides the output.base_dir from the YAML if provided",
-    )
-    parser.add_argument(
-        "--defense-config",
-        help="Override the defenses.config_path entry without touching the YAML file",
     )
     return parser.parse_args()
 
@@ -105,9 +104,6 @@ def main() -> None:
     args = parse_args()
     cfg = load_experiment_config(args.experiment_config)
 
-    if args.defense_config:
-        cfg.defenses.config_path = Path(args.defense_config)
-
     try:
         imagenet_train_root, imagenet_val_root = resolve_imagenet_paths(args)
     except ValueError as exc:
@@ -166,7 +162,6 @@ def main() -> None:
             "eval_interval": cfg.training.eval_interval,
         },
         "defenses": {
-            "config_path": str(cfg.defenses.config_path) if cfg.defenses.config_path else None,
             "stack": [
                 {"type": item.type, "name": item.name, "params": item.params}
                 for item in cfg.defenses.stack
@@ -177,9 +172,20 @@ def main() -> None:
 
     export_plan(run_dir / "plan.json", plan)
 
-    # Real training logic will consume ``plan``; wiring the config in place now
-    # ensures we can focus on data/defense plumbing next.
-    print(f"Experiment plan written to {run_dir / 'plan.json'}")
+    dataset_splits = sample_dataset(cfg.dataset, imagenet_train_root)
+    split_summary = {split: len(getattr(dataset_splits, split)) for split in ("train", "val", "test")}
+    with (run_dir / "dataset_split.json").open("w", encoding="utf-8") as handle:
+        json.dump(split_summary, handle, indent=2)
+    defended_splits = prepare_defended_splits(dataset_splits, cfg.defenses.stack, run_dir / "defended")
+    dataloaders = build_dataloaders(
+        defended_splits,
+        batch_size=cfg.training.batch_size,
+        num_workers=cfg.training.num_workers,
+    )
+
+    train_model(cfg, dataloaders, run_dir)
+
+    print(f"Experiment plan written to {run_dir / 'plan.json'} and training completed.")
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI guard

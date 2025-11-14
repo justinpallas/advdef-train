@@ -141,14 +141,12 @@ class DefenseSpec:
 
 @dataclass
 class DefenseConfig:
-    config_path: Optional[Path]
     stack: List[DefenseSpec] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "DefenseConfig":
-        config_path = data.get("config_path")
         stack = [DefenseSpec.from_dict(item) for item in data.get("stack", [])]
-        return cls(Path(config_path) if config_path else None, stack)
+        return cls(stack=stack)
 
 
 @dataclass
