@@ -1,0 +1,3 @@
+[submodule "external/adv-it-defenses"]
+	path = external/adv-it-defenses
+	url = https://github.com/justinpallas/adv-it-defenses.git

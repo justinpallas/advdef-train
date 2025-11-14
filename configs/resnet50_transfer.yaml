@@ -1,0 +1,62 @@
+name: resnet50_transfer
+description: >
+  Baseline ResNet-50 transfer-learning run that limits the training subset and
+  evaluates robustness under the R-SMoE + JPEG defenses bundled with adv-it-defenses.
+seed: 42
+dataset:
+  name: imagenet_subset
+  total_images: 5000
+  splits:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+  shuffle: true
+  selection_seed: 1337
+  downloads:
+    auto_download: true
+    download_dir: downloads
+model:
+  architecture: resnet50
+  pretrained: true
+  num_classes: 1000
+training:
+  epochs: 25
+  batch_size: 64
+  num_workers: 8
+  mixed_precision: true
+  eval_interval: 1
+  finetune:
+    freeze_backbone: true
+    trainable_layers:
+      - layer4
+      - fc
+    reset_classifier: true
+    freeze_batchnorm: true
+  optimizer:
+    name: adamw
+    params:
+      lr: 0.0001
+      weight_decay: 0.01
+  scheduler:
+    name: cosine
+    params:
+      min_lr: 1.0e-6
+      warmup_epochs: 2
+defenses:
+  config_path: external/adv-it-defenses/configs/resnet50_autoattack_bm3d.yaml
+  stack:
+    - type: r-smoe
+      name: r_smoe_standard
+      params:
+        root: external/r-smoe
+        mode: standard
+        iterations: 500
+        npcs: 2000
+        file_name_prefix: rsmoe
+    - type: jpeg
+      name: jpeg_quality_90
+      params:
+        quality: 90
+output:
+  base_dir: runs
+  save_every: 1
