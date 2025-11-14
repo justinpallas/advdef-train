@@ -30,9 +30,13 @@ python -m training.train \
   --output-dir runs/$(date +%Y%m%d_%H%M)
 ```
 
-Use `--imagenet-train-root` / `--imagenet-val-root` (or the matching
+If no CLI flags or env vars are set, the CLI falls back to `datasets/imagenet`
+under the current working directory (mirroring the advdef behavior) and expects
+its `train/` + `val/` children there, downloading the train tarball if needed.
+Use `--imagenet-root` or `IMAGENET_ROOT` to pin a different base directory, and
+`--imagenet-train-root` / `--imagenet-val-root` (or the matching
 `IMAGENET_*_ROOT` env vars) to override individual directories when they are not
-nested under `--imagenet-root`.
+nested under the inferred base.
 
 Override the defense config on the fly with `--defense-config` to reuse the
 same dataset/model split with a different advdef pipeline.

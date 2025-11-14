@@ -11,6 +11,7 @@ from typing import Dict, Tuple
 from .config import ExperimentConfig, load_experiment_config
 from .data_prep import ensure_imagenet_trainset
 
+ENV_BASE_ROOT = "IMAGENET_ROOT"
 ENV_TRAIN_ROOT = "IMAGENET_TRAIN_ROOT"
 ENV_VAL_ROOT = "IMAGENET_VAL_ROOT"
 
@@ -60,7 +61,12 @@ def _first_resolved(*values: Path | str | None) -> Path | None:
 
 
 def resolve_imagenet_paths(args: argparse.Namespace) -> Tuple[Path, Path]:
-    base_root = _resolve_optional_path(args.imagenet_root)
+    default_root = (Path.cwd() / "datasets" / "imagenet").resolve()
+    base_root = _first_resolved(
+        args.imagenet_root,
+        os.environ.get(ENV_BASE_ROOT),
+        default_root,
+    )
     train_root = _first_resolved(
         args.imagenet_train_root,
         os.environ.get(ENV_TRAIN_ROOT),
@@ -107,12 +113,12 @@ def main() -> None:
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
-    if not imagenet_train_root.exists():
-        raise FileNotFoundError(
-            f"ImageNet train root {imagenet_train_root} does not exist."
-        )
-
     ensure_imagenet_trainset(imagenet_train_root, cfg.dataset.downloads)
+
+    if not imagenet_train_root.exists() or not any(imagenet_train_root.iterdir()):
+        raise FileNotFoundError(
+            f"ImageNet train root {imagenet_train_root} could not be prepared."
+        )
 
     split_counts = cfg.dataset.split_counts()
     run_dir = materialize_run_directory(cfg, args.output_dir)

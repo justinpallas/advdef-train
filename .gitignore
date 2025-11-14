@@ -6,3 +6,6 @@ runs/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+datasets
+downloads
+.DS_Store
