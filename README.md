@@ -12,6 +12,10 @@ This Repository is used to fine-tune a pretrained ResNet-50 Model with the defen
 ## Initial Setup
 
 ```bash
+git clone <this repo>
+cd advdef-train
+git submodule update --init --recursive  # pulls adv-it-defenses (and its submodules)
+
 python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
@@ -58,7 +62,7 @@ This command will:
    implementations (outputs land under `runs/<exp>/defended/`).
 3. Launch the fine-tuning loop (ResNet-50 by default) with the optimizer /
    scheduler / finetune settings in the YAML.
-4. Write `plan.json`, `dataset_split.json`, per-epoch metrics, and checkpoints under
+4. Write `plan.json`, `dataset_split.json`, per-epoch metrics/plots, and checkpoints under
    `runs/<experiment-name>/`.
 
 ## Configuration Notes
