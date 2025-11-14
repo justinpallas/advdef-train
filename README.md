@@ -26,9 +26,11 @@ pip install -e .
 # Install the defenses repo so the `advdef` CLI is available
 pip install -e external/adv-it-defenses[dev]
 
-# One-time setup for heavy defenses
+# One-time setup for heavy defenses (run from the adv-it-defenses directory)
+cd external/adv-it-defenses
 advdef setup r-smoe
 advdef setup bm3d-gpu    # only if you plan to use BM3D
+cd ../..
 ```
 
 ## Dataset Layout
