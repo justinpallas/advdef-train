@@ -44,18 +44,10 @@ training:
       warmup_epochs: 2
 defenses:
   stack:
-    - type: r-smoe
-      name: r_smoe_standard
-      params:
-        root: external/r-smoe
-        mode: standard
-        iterations: 500
-        npcs: 2000
-        file_name_prefix: rsmoe
     - type: jpeg
       name: jpeg_quality_90
       params:
-        quality: 90
+        quality: 75
 output:
   base_dir: runs
   save_every: 1
