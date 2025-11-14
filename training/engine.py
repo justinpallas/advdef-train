@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence
 
 import torch
 from torch import nn
@@ -169,6 +169,8 @@ def train_model(
     with metrics_path.open("w", encoding="utf-8") as handle:
         json.dump([entry.to_dict() for entry in history], handle, indent=2)
 
+    _plot_history(history, run_dir)
+
     test_loader = dataloaders.get("test")
     if test_loader is not None:
         test_loss, test_acc = _evaluate(model, test_loader, criterion, device)
@@ -236,3 +238,56 @@ def _evaluate(model: nn.Module, dataloader: DataLoader, criterion, device: torch
     avg_loss = total_loss / max(1, total_samples)
     accuracy = total_correct / max(1, total_samples)
     return avg_loss, accuracy
+
+
+def _plot_history(history: Sequence[TrainMetrics], run_dir: Path) -> None:
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:  # pragma: no cover - fallback if matplotlib missing
+        print("[warn] matplotlib not available; skipping metric plots.")
+        return
+
+    if not history:
+        return
+
+    epochs = [entry.epoch for entry in history]
+    train_loss = [entry.train_loss for entry in history]
+    train_acc = [entry.train_acc for entry in history]
+
+    val_epochs_loss, val_loss = _filter_series(history, lambda m: m.val_loss)
+    val_epochs_acc, val_acc = _filter_series(history, lambda m: m.val_acc)
+
+    plt.style.use("seaborn-v0_8")
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+    axes[0].plot(epochs, train_loss, label="train")
+    if val_loss:
+        axes[0].plot(val_epochs_loss, val_loss, label="val")
+    axes[0].set_title("Loss")
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Cross-Entropy")
+    axes[0].legend()
+
+    axes[1].plot(epochs, train_acc, label="train")
+    if val_acc:
+        axes[1].plot(val_epochs_acc, val_acc, label="val")
+    axes[1].set_title("Accuracy")
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_ylabel("Top-1 Accuracy")
+    axes[1].legend()
+
+    fig.tight_layout()
+    plot_path = run_dir / "metrics.png"
+    fig.savefig(plot_path)
+    plt.close(fig)
+
+
+def _filter_series(history: Sequence[TrainMetrics], selector):
+    xs = []
+    ys = []
+    for entry in history:
+        value = selector(entry)
+        if value is not None:
+            xs.append(entry.epoch)
+            ys.append(value)
+    return xs, ys
