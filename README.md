@@ -18,7 +18,6 @@ git submodule update --init --recursive  # pulls adv-it-defenses (and its submod
 
 python -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip
 
 # Install this training package (brings torch, torchvision, etc.)
 pip install -e .
@@ -28,8 +27,8 @@ pip install -e external/adv-it-defenses[dev]
 
 # One-time setup for heavy defenses (run from the adv-it-defenses directory)
 cd external/adv-it-defenses
-advdef setup r-smoe
-advdef setup bm3d-gpu    # only if you plan to use BM3D
+advdef setup r-smoe      # if you plan to use R-SMoE
+advdef setup bm3d-gpu    # if you plan to use BM3D
 cd ../..
 ```
 

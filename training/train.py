@@ -88,9 +88,24 @@ def resolve_imagenet_paths(args: argparse.Namespace) -> Tuple[Path, Path]:
     return train_root, val_root
 
 
+def _resolve_dir(path: Path | str) -> Path:
+    resolved = Path(path).expanduser()
+    if not resolved.is_absolute():
+        resolved = (Path.cwd() / resolved).resolve()
+    return resolved
+
+
 def materialize_run_directory(cfg: ExperimentConfig, override: str | None) -> Path:
-    base_dir = Path(override) if override else cfg.output.base_dir
-    run_dir = base_dir / cfg.name
+    base_dir = _resolve_dir(override) if override else _resolve_dir(cfg.output.base_dir)
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    run_name = cfg.name
+    run_dir = base_dir / run_name
+    suffix = 1
+    while run_dir.exists():
+        run_dir = base_dir / f"{run_name}_{suffix:02d}"
+        suffix += 1
+
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
 
