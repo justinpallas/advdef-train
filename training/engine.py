@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Sequence
@@ -129,7 +130,8 @@ def train_model(
 
     optimizer = create_optimizer(cfg.training, model)
     scheduler = create_scheduler(cfg.training, optimizer)
-    scaler = torch.cuda.amp.GradScaler(enabled=cfg.training.mixed_precision and device.type == "cuda")
+    use_cuda_amp = cfg.training.mixed_precision and device.type == "cuda"
+    scaler = torch.amp.GradScaler("cuda") if use_cuda_amp else None
     criterion = nn.CrossEntropyLoss()
 
     history: list[TrainMetrics] = []
@@ -148,7 +150,7 @@ def train_model(
             scaler,
             criterion,
             device,
-            mixed_precision=cfg.training.mixed_precision,
+            use_amp=use_cuda_amp,
         )
 
         val_loader = dataloaders.get("val")
@@ -186,7 +188,7 @@ def _run_train_epoch(
     scaler,
     criterion,
     device: torch.device,
-    mixed_precision: bool,
+    use_amp: bool,
 ):
     model.train()
     total_loss = 0.0
@@ -199,13 +201,21 @@ def _run_train_epoch(
         targets = targets.to(device, non_blocking=True)
 
         optimizer.zero_grad(set_to_none=True)
-        with torch.cuda.amp.autocast(enabled=mixed_precision and device.type == "cuda"):
+        if use_amp:
+            autocast_ctx = torch.amp.autocast("cuda")
+        else:
+            autocast_ctx = nullcontext()
+        with autocast_ctx:
             outputs = model(inputs)
             loss = criterion(outputs, targets)
 
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
 
         total_loss += loss.item() * inputs.size(0)
         predictions = outputs.argmax(dim=1)
