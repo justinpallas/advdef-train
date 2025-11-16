@@ -1,11 +1,12 @@
-name: resnet50_transfer
+name: resnet50_transfer_10k
 description: >
-  Baseline ResNet-50 transfer-learning run that limits the training subset and
-  fine-tunes on images compressed through a JPEG defense pipeline.
+  ResNet-50 transfer run tuned for a 10k image subset with balanced per-class sampling
+  and conservative AdamW fine-tuning while training only layer4 + fc.
 seed: 42
 dataset:
   name: imagenet_subset
-  total_images: 20000
+  total_images: 10000
+  per_class_limit: 10
   splits:
     train: 0.8
     val: 0.1
@@ -20,8 +21,8 @@ model:
   pretrained: true
   num_classes: 1000
 training:
-  epochs: 25
-  batch_size: 256
+  epochs: 10
+  batch_size: 128
   num_workers: 8
   mixed_precision: true
   eval_interval: 1
@@ -31,17 +32,16 @@ training:
       - layer4
       - fc
     reset_classifier: true
-    freeze_batchnorm: true
+    freeze_batchnorm: false
   optimizer:
     name: adamw
     params:
-      lr: 0.0001
+      lr: 0.0005
       weight_decay: 0.01
   scheduler:
     name: cosine
     params:
-      min_lr: 1.0e-6
-      warmup_epochs: 2
+      min_lr: 1.0e-5
 defenses:
   stack:
     - type: jpeg

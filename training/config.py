@@ -97,6 +97,7 @@ class DatasetConfig:
     shuffle: bool = True
     selection_seed: Optional[int] = None
     class_filter: Optional[List[str]] = None
+    per_class_limit: Optional[int] = None
     downloads: DatasetDownloadConfig = field(default_factory=DatasetDownloadConfig)
 
     @classmethod
@@ -109,6 +110,12 @@ class DatasetConfig:
         downloads = DatasetDownloadConfig.from_dict(data.get("downloads", {}))
         selection_seed = data.get("selection_seed")
         class_filter = data.get("class_filter")
+        per_class_limit = data.get("per_class_limit")
+        per_class_limit_int = (
+            int(per_class_limit) if per_class_limit is not None else None
+        )
+        if per_class_limit_int is not None and per_class_limit_int <= 0:
+            raise ValueError("dataset.per_class_limit must be positive when provided")
         return cls(
             name=str(data["name"]),
             total_images=int(data["total_images"]),
@@ -116,6 +123,7 @@ class DatasetConfig:
             shuffle=bool(data.get("shuffle", True)),
             selection_seed=int(selection_seed) if selection_seed is not None else None,
             class_filter=list(class_filter) if class_filter is not None else None,
+            per_class_limit=per_class_limit_int,
             downloads=downloads,
         )
 

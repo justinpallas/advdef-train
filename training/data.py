@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import random
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Sequence
 
 from PIL import Image
+
 from torch.utils.data import DataLoader, Dataset
 
 from .config import DatasetConfig
@@ -96,12 +98,35 @@ def sample_dataset(cfg: DatasetConfig, root: Path) -> DatasetSplits:
     if cfg.shuffle:
         rng.shuffle(all_samples)
 
-    if cfg.total_images > len(all_samples):
-        raise ValueError(
-            f"Requested {cfg.total_images} images but only {len(all_samples)} are available under {root}."
-        )
+    per_class_limit = cfg.per_class_limit
+    if per_class_limit is not None:
+        samples_by_class = defaultdict(list)
+        for sample in all_samples:
+            samples_by_class[sample.label].append(sample)
 
-    subset = all_samples[: cfg.total_images]
+        available = sum(min(per_class_limit, len(entries)) for entries in samples_by_class.values())
+        if cfg.total_images > available:
+            raise ValueError(
+                f"Requested {cfg.total_images} images but dataset.per_class_limit={per_class_limit} "
+                f"only yields {available} samples. Reduce total_images or increase the limit."
+            )
+
+        subset: List[Sample] = []
+        for label in sorted(samples_by_class):
+            class_samples = list(samples_by_class[label])
+            if cfg.shuffle:
+                rng.shuffle(class_samples)
+            subset.extend(class_samples[:per_class_limit])
+        if cfg.shuffle:
+            rng.shuffle(subset)
+    else:
+        if cfg.total_images > len(all_samples):
+            raise ValueError(
+                f"Requested {cfg.total_images} images but only {len(all_samples)} are available under {root}."
+            )
+        subset = all_samples[: cfg.total_images]
+
+    subset = subset[: cfg.total_images]
     counts = cfg.split_counts()
 
     train_end = counts["train"]
