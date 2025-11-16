@@ -11,7 +11,7 @@ from typing import Dict, Optional, Sequence
 import torch
 from torch import nn
 from torch.optim import AdamW, SGD
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from torch.utils.data import DataLoader
 from torchvision import models
 from tqdm import tqdm
@@ -118,6 +118,12 @@ def create_scheduler(training_cfg: TrainingConfig, optimizer):
             optimizer,
             T_max=training_cfg.epochs,
             eta_min=float(params.get("min_lr", 0.0)),
+        )
+    if name == "step":
+        return StepLR(
+            optimizer,
+            step_size=int(params.get("step_size", 30)),
+            gamma=float(params.get("gamma", 0.1)),
         )
     raise ValueError(f"Unsupported scheduler '{training_cfg.scheduler.name}'.")
 
