@@ -15,6 +15,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from torch.utils.data import DataLoader
 from torchvision import models
 from tqdm import tqdm
+from torch.distributions.beta import Beta
 
 from .config import ExperimentConfig, FinetuneConfig, ModelConfig, TrainingConfig
 
@@ -160,6 +161,7 @@ def train_model(
             criterion,
             device,
             use_amp=use_cuda_amp,
+            mixup_alpha=cfg.training.mixup_alpha,
         )
 
         val_loader = dataloaders.get("val")
@@ -198,6 +200,7 @@ def _run_train_epoch(
     criterion,
     device: torch.device,
     use_amp: bool,
+    mixup_alpha: float,
 ):
     model.train()
     total_loss = 0.0
@@ -208,6 +211,8 @@ def _run_train_epoch(
     for inputs, targets in progress:
         inputs = inputs.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
+        inputs, targets_a, targets_b, lam = _apply_mixup(inputs, targets, mixup_alpha)
+        mixup_active = lam != 1.0
 
         optimizer.zero_grad(set_to_none=True)
         if use_amp:
@@ -216,7 +221,10 @@ def _run_train_epoch(
             autocast_ctx = nullcontext()
         with autocast_ctx:
             outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            if mixup_active:
+                loss = lam * criterion(outputs, targets_a) + (1.0 - lam) * criterion(outputs, targets_b)
+            else:
+                loss = criterion(outputs, targets)
 
         if scaler is not None:
             scaler.scale(loss).backward()
@@ -228,7 +236,12 @@ def _run_train_epoch(
 
         total_loss += loss.item() * inputs.size(0)
         predictions = outputs.argmax(dim=1)
-        total_correct += (predictions == targets).sum().item()
+        if mixup_active:
+            correct = lam * (predictions == targets_a).float()
+            correct += (1.0 - lam) * (predictions == targets_b).float()
+            total_correct += correct.sum().item()
+        else:
+            total_correct += (predictions == targets).sum().item()
         total_samples += inputs.size(0)
 
     avg_loss = total_loss / max(1, total_samples)
@@ -310,3 +323,15 @@ def _filter_series(history: Sequence[TrainMetrics], selector):
             xs.append(entry.epoch)
             ys.append(value)
     return xs, ys
+
+
+def _apply_mixup(inputs: torch.Tensor, targets: torch.Tensor, alpha: float):
+    if alpha <= 0.0 or inputs.size(0) == 1:
+        return inputs, targets, targets, 1.0
+    beta_dist = Beta(alpha, alpha)
+    lam = float(beta_dist.sample().item())
+    index = torch.randperm(inputs.size(0), device=inputs.device)
+    mixed_inputs = lam * inputs + (1.0 - lam) * inputs[index]
+    targets_a = targets
+    targets_b = targets[index]
+    return mixed_inputs, targets_a, targets_b, lam

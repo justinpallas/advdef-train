@@ -232,6 +232,7 @@ class TrainingConfig:
     finetune: FinetuneConfig
     eval_interval: int
     label_smoothing: float = 0.0
+    mixup_alpha: float = 0.0
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TrainingConfig":
@@ -242,6 +243,9 @@ class TrainingConfig:
         smoothing = float(data.get("label_smoothing", 0.0))
         if smoothing < 0.0 or smoothing >= 1.0:
             raise ValueError("training.label_smoothing must be between 0.0 and 1.0 (exclusive).")
+        mixup_alpha = float(data.get("mixup_alpha", 0.0))
+        if mixup_alpha < 0.0:
+            raise ValueError("training.mixup_alpha must be non-negative.")
         return cls(
             epochs=int(data.get("epochs", 10)),
             batch_size=int(data.get("batch_size", 64)),
@@ -252,6 +256,7 @@ class TrainingConfig:
             finetune=finetune,
             eval_interval=int(data.get("eval_interval", 1)),
             label_smoothing=smoothing,
+            mixup_alpha=mixup_alpha,
         )
 
 
