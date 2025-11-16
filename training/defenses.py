@@ -16,8 +16,11 @@ _TRAINING_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _TRAINING_DIR.parent
 BM3D_WRAPPER = _TRAINING_DIR / "bin" / "bm3d_cli_wrapper.py"
 BM3D_LOCK_PATH = (_PROJECT_ROOT / ".bm3d_cli.lock").resolve()
+BM3D_LOG_DIR = (_PROJECT_ROOT / ".bm3d_cli_logs").resolve()
 BM3D_BINARY_FLAG = "--bm3d-binary"
 BM3D_LOCK_FLAG = "--bm3d-lock"
+BM3D_LOG_FLAG = "--bm3d-log-dir"
+BM3D_PASSTHRU_FLAG = "--bm3d-passthru"
 _BM3D_WRAPPER_NOTICE_SHOWN = False
 
 
@@ -99,14 +102,12 @@ def _wrap_bm3d_cli(params: dict, binary: Path) -> None:
         _BM3D_WRAPPER_NOTICE_SHOWN = True
     params["cli_binary"] = str(BM3D_WRAPPER)
     extra_args = _normalize_extra_args(params.get("cli_extra_args"))
-
-    if not _has_flag(extra_args, BM3D_BINARY_FLAG):
-        extra_args = [BM3D_BINARY_FLAG, str(binary), *extra_args]
-
-    if not _has_flag(extra_args, BM3D_LOCK_FLAG):
-        lock_path = _resolve_lock_path(params.get("cli_lock_path"))
-        extra_args = [BM3D_LOCK_FLAG, str(lock_path), *extra_args]
-
+    extra_args = _inject_flag(extra_args, BM3D_BINARY_FLAG, str(binary))
+    lock_path = _resolve_lock_path(params.get("cli_lock_path"))
+    extra_args = _inject_flag(extra_args, BM3D_LOCK_FLAG, str(lock_path))
+    extra_args = _inject_flag(extra_args, BM3D_LOG_FLAG, str(BM3D_LOG_DIR))
+    if params.get("cli_log_output"):
+        extra_args = _inject_flag(extra_args, BM3D_PASSTHRU_FLAG, None)
     params["cli_extra_args"] = extra_args
 
 
@@ -119,12 +120,20 @@ def _normalize_extra_args(args: object | Iterable[object] | None) -> list[str]:
 
 
 def _has_flag(args: list[str], flag: str) -> bool:
-    for value in args:
+    for idx, value in enumerate(args):
         if value == flag:
             return True
-        if value.startswith(f"{flag}="):
+        if isinstance(value, str) and value.startswith(f"{flag}="):
             return True
     return False
+
+
+def _inject_flag(args: list[str], flag: str, value: str | None) -> list[str]:
+    if _has_flag(args, flag):
+        return args
+    if value is None:
+        return [flag, *args]
+    return [flag, value, *args]
 
 
 def _resolve_lock_path(explicit: object | None) -> Path:
