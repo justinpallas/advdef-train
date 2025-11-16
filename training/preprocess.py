@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, Iterable, List, Tuple
-
-import shutil
 from tqdm import tqdm
 
 from advdef.core.pipeline import DatasetVariant
@@ -14,6 +12,10 @@ from advdef.core.pipeline import DatasetVariant
 from .config import DefenseSpec
 from .data import DatasetSplits, Sample
 from .defenses import build_advdef_defense, ensure_supported
+from PIL import Image
+
+DEFENSE_RESIZE_SHORT_SIDE = 256
+DEFENSE_CROP_SIZE = 224
 
 
 def prepare_defended_splits(
@@ -82,9 +84,61 @@ def _materialize_inputs(samples: List[Sample], inputs_dir: Path) -> List[Tuple[s
         extension = sample.path.suffix.lower() or ".jpg"
         destination = inputs_dir / sample.label_name / f"{alias}{extension}"
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(sample.path, destination)
+        _prepare_for_defense(sample.path, destination)
         alias_map.append((alias, sample))
     return alias_map
+
+
+def _prepare_for_defense(src: Path, dst: Path) -> None:
+    with Image.open(src) as image:
+        image = image.convert("RGB")
+        image = _resize_shortest_side(image, DEFENSE_RESIZE_SHORT_SIDE)
+        image = _center_crop(image, DEFENSE_CROP_SIZE)
+        _save_image(image, dst)
+
+
+def _resize_shortest_side(image: Image.Image, size: int) -> Image.Image:
+    width, height = image.size
+    if width == 0 or height == 0:
+        return image
+    short, long = (width, height) if width <= height else (height, width)
+    if short == size:
+        return image
+    if width < height:
+        new_width = size
+        new_height = int(round(size * height / width))
+    else:
+        new_height = size
+        new_width = int(round(size * width / height))
+    return image.resize((new_width, new_height), Image.BILINEAR)
+
+
+def _center_crop(image: Image.Image, size: int) -> Image.Image:
+    width, height = image.size
+    if width == size and height == size:
+        return image
+    left = int(round((width - size) / 2.0))
+    top = int(round((height - size) / 2.0))
+    right = left + size
+    bottom = top + size
+    return image.crop((left, top, right, bottom))
+
+
+def _save_image(image: Image.Image, dst: Path) -> None:
+    extension = dst.suffix.lower()
+    save_kwargs = {}
+    if extension in {".png"}:
+        fmt = "PNG"
+    elif extension in {".bmp"}:
+        fmt = "BMP"
+    elif extension in {".tiff", ".tif"}:
+        fmt = "TIFF"
+    else:
+        fmt = "JPEG"
+        save_kwargs = {"quality": 95}
+        if extension not in {".jpg", ".jpeg"}:
+            dst = dst.with_suffix(".jpg")
+    image.save(dst, format=fmt, **save_kwargs)
 
 
 def _index_outputs(root: Path) -> Dict[str, Path]:

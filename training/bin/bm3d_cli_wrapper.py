@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serialize bm3d-gpu CLI invocations and record failures for debugging."""
+"""Serialize bm3d-gpu CLI invocations and capture failures."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ try:
     import fcntl
 except ImportError:  # pragma: no cover - non-POSIX systems
     fcntl = None  # type: ignore[assignment]
-
 
 BINARY_FLAG = "--bm3d-binary"
 LOCK_FLAG = "--bm3d-lock"
