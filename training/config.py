@@ -163,15 +163,20 @@ class ModelConfig:
     pretrained: bool = True
     num_classes: int = 1000
     checkpoint: Optional[Path] = None
+    head_dropout: float = 0.0
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ModelConfig":
         checkpoint = data.get("checkpoint")
+        head_dropout = float(data.get("head_dropout", 0.0))
+        if head_dropout < 0.0 or head_dropout >= 1.0:
+            raise ValueError("model.head_dropout must be between 0.0 and 1.0 (exclusive).")
         return cls(
             architecture=str(data.get("architecture", "resnet50")),
             pretrained=bool(data.get("pretrained", True)),
             num_classes=int(data.get("num_classes", 1000)),
             checkpoint=Path(checkpoint) if checkpoint else None,
+            head_dropout=head_dropout,
         )
 
 

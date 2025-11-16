@@ -49,6 +49,9 @@ def build_model(cfg: ModelConfig, finetune: FinetuneConfig) -> nn.Module:
         state_dict = torch.load(str(cfg.checkpoint), map_location="cpu")
         model.load_state_dict(state_dict)
 
+    if cfg.head_dropout > 0.0:
+        model.fc = nn.Sequential(nn.Dropout(p=cfg.head_dropout), model.fc)
+
     apply_finetune_controls(model, finetune)
     return model
 

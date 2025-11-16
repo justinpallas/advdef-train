@@ -20,6 +20,7 @@ model:
   architecture: resnet50
   pretrained: true
   num_classes: 1000
+  head_dropout: 0.2
 training:
   epochs: 10
   batch_size: 128
