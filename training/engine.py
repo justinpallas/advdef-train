@@ -141,7 +141,7 @@ def train_model(
     scheduler = create_scheduler(cfg.training, optimizer)
     use_cuda_amp = cfg.training.mixed_precision and device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda") if use_cuda_amp else None
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=cfg.training.label_smoothing)
 
     history: list[TrainMetrics] = []
     checkpoints_dir = run_dir / "checkpoints"

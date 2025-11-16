@@ -231,6 +231,7 @@ class TrainingConfig:
     scheduler: Optional[SchedulerConfig]
     finetune: FinetuneConfig
     eval_interval: int
+    label_smoothing: float = 0.0
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TrainingConfig":
@@ -238,6 +239,9 @@ class TrainingConfig:
         scheduler_cfg = data.get("scheduler")
         scheduler = SchedulerConfig.from_dict(scheduler_cfg) if scheduler_cfg else None
         finetune = FinetuneConfig.from_dict(data.get("finetune", {}))
+        smoothing = float(data.get("label_smoothing", 0.0))
+        if smoothing < 0.0 or smoothing >= 1.0:
+            raise ValueError("training.label_smoothing must be between 0.0 and 1.0 (exclusive).")
         return cls(
             epochs=int(data.get("epochs", 10)),
             batch_size=int(data.get("batch_size", 64)),
@@ -247,6 +251,7 @@ class TrainingConfig:
             scheduler=scheduler,
             finetune=finetune,
             eval_interval=int(data.get("eval_interval", 1)),
+            label_smoothing=smoothing,
         )
 
 
