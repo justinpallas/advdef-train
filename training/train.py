@@ -11,7 +11,7 @@ from typing import Dict, Tuple
 from .config import ExperimentConfig, load_experiment_config
 from .data import build_dataloaders, sample_dataset
 from .data_prep import ensure_imagenet_trainset
-from .engine import train_model
+from .engine import run_baseline_resnet50_inference, train_model
 from .preprocess import prepare_defended_splits
 
 ENV_BASE_ROOT = "IMAGENET_ROOT"
@@ -197,6 +197,8 @@ def main() -> None:
         batch_size=cfg.training.batch_size,
         num_workers=cfg.training.num_workers,
     )
+
+    run_baseline_resnet50_inference(dataloaders.get("val"), run_dir)
 
     train_model(cfg, dataloaders, run_dir)
 

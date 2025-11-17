@@ -129,6 +129,30 @@ def create_scheduler(training_cfg: TrainingConfig, optimizer):
     raise ValueError(f"Unsupported scheduler '{training_cfg.scheduler.name}'.")
 
 
+def run_baseline_resnet50_inference(val_loader: Optional[DataLoader], run_dir: Path) -> None:
+    """Evaluate the standard ResNet-50 on the defended validation split."""
+    if val_loader is None:
+        print("[warn] Skipping baseline inference because the validation split is empty.")
+        return
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    weights = models.ResNet50_Weights.IMAGENET1K_V2
+    model = models.resnet50(weights=weights)
+    model.to(device)
+    criterion = nn.CrossEntropyLoss()
+    val_loss, val_acc = _evaluate(model, val_loader, criterion, device)
+
+    metrics = {"loss": val_loss, "accuracy": val_acc}
+    output_path = run_dir / "baseline_resnet50.json"
+    with output_path.open("w", encoding="utf-8") as handle:
+        json.dump(metrics, handle, indent=2)
+
+    print(
+        f"Baseline ResNet-50 on defended val split — loss: {val_loss:.4f}, accuracy: {val_acc:.4%}. "
+        f"Metrics saved to {output_path}"
+    )
+
+
 def train_model(
     cfg: ExperimentConfig,
     dataloaders: Dict[str, Optional[DataLoader]],
