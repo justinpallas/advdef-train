@@ -15,7 +15,7 @@ from .defenses import build_advdef_defense, ensure_supported
 from PIL import Image
 
 DEFENSE_RESIZE_SHORT_SIDE = 256
-DEFENSE_CROP_SIZE = 224
+DEFENSE_CROP_SIZE = 256
 
 
 def prepare_defended_splits(
