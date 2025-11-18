@@ -5,8 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 from pathlib import Path
 from typing import Dict, Tuple
+
+import numpy as np
+import torch
 
 from .config import ExperimentConfig, load_experiment_config
 from .data import build_dataloaders, sample_dataset
@@ -17,6 +21,16 @@ from .preprocess import prepare_defended_splits
 ENV_BASE_ROOT = "IMAGENET_ROOT"
 ENV_TRAIN_ROOT = "IMAGENET_TRAIN_ROOT"
 ENV_VAL_ROOT = "IMAGENET_VAL_ROOT"
+
+
+def _set_global_seed(seed: int) -> None:
+    if seed < 0:
+        return
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def parse_args() -> argparse.Namespace:
@@ -118,6 +132,7 @@ def export_plan(path: Path, payload: Dict) -> None:
 def main() -> None:
     args = parse_args()
     cfg = load_experiment_config(args.experiment_config)
+    _set_global_seed(cfg.seed)
 
     try:
         imagenet_train_root, imagenet_val_root = resolve_imagenet_paths(args)

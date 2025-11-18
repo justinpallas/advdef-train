@@ -11,7 +11,7 @@ from typing import Dict, Optional, Sequence
 import torch
 from torch import nn
 from torch.optim import AdamW, SGD
-from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR, StepLR
 from torch.utils.data import DataLoader
 from torchvision import models
 from tqdm import tqdm
@@ -114,18 +114,45 @@ def create_scheduler(training_cfg: TrainingConfig, optimizer):
         return None
     name = training_cfg.scheduler.name.lower()
     params = training_cfg.scheduler.params
-    if name == "cosine":
-        return CosineAnnealingLR(
+    warmup_epochs = max(0, int(params.get("warmup_epochs", 0)))
+    warmup_start = float(params.get("warmup_start_factor", 0.1))
+
+    def _attach_warmup(main_scheduler):
+        if warmup_epochs <= 0:
+            return main_scheduler
+        total_iters = min(warmup_epochs, training_cfg.epochs)
+        start_factor = max(1e-3, warmup_start)
+        warmup = LinearLR(
             optimizer,
-            T_max=training_cfg.epochs,
-            eta_min=float(params.get("min_lr", 0.0)),
+            start_factor=start_factor,
+            end_factor=1.0,
+            total_iters=max(1, total_iters),
         )
+        if training_cfg.epochs <= warmup_epochs or main_scheduler is None:
+            return warmup
+        return SequentialLR(
+            optimizer,
+            schedulers=[warmup, main_scheduler],
+            milestones=[total_iters],
+        )
+
+    if name == "cosine":
+        main_epochs = max(0, training_cfg.epochs - warmup_epochs)
+        scheduler = None
+        if main_epochs > 0:
+            scheduler = CosineAnnealingLR(
+                optimizer,
+                T_max=main_epochs,
+                eta_min=float(params.get("min_lr", 0.0)),
+            )
+        return _attach_warmup(scheduler)
     if name == "step":
-        return StepLR(
+        scheduler = StepLR(
             optimizer,
             step_size=int(params.get("step_size", 30)),
             gamma=float(params.get("gamma", 0.1)),
         )
+        return _attach_warmup(scheduler)
     raise ValueError(f"Unsupported scheduler '{training_cfg.scheduler.name}'.")
 
 
