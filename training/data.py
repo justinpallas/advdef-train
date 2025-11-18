@@ -31,6 +31,7 @@ class DatasetSplits:
     val: List[Sample]
     test: List[Sample]
     class_to_idx: Dict[str, int]
+    preprocessed: bool = False
 
     def as_dict(self) -> Dict[str, List[Sample]]:
         return {"train": self.train, "val": self.val, "test": self.test}
@@ -155,7 +156,7 @@ def build_dataloaders(
         if not split_samples:
             loaders[split_name] = None
             continue
-        transform = build_transform(split_name)
+        transform = build_transform(split_name, samples.preprocessed)
         dataset = ImageNetSubset(split_samples, transform)
         shuffle = split_name == "train"
         loaders[split_name] = DataLoader(

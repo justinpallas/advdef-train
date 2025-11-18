@@ -36,7 +36,13 @@ def _apply_advdef_defense(splits: DatasetSplits, spec: DefenseSpec, step_root: P
     new_train = _run_defense_on_split(splits.train, "train", spec, step_root)
     new_val = _run_defense_on_split(splits.val, "val", spec, step_root)
     new_test = _run_defense_on_split(splits.test, "test", spec, step_root)
-    return DatasetSplits(train=new_train, val=new_val, test=new_test, class_to_idx=splits.class_to_idx)
+    return DatasetSplits(
+        train=new_train,
+        val=new_val,
+        test=new_test,
+        class_to_idx=splits.class_to_idx,
+        preprocessed=True,
+    )
 
 
 def _run_defense_on_split(
