@@ -98,6 +98,7 @@ class DatasetConfig:
     selection_seed: Optional[int] = None
     class_filter: Optional[List[str]] = None
     per_class_limit: Optional[int] = None
+    defended_root: Optional[Path] = None
     downloads: DatasetDownloadConfig = field(default_factory=DatasetDownloadConfig)
 
     @classmethod
@@ -111,6 +112,8 @@ class DatasetConfig:
         selection_seed = data.get("selection_seed")
         class_filter = data.get("class_filter")
         per_class_limit = data.get("per_class_limit")
+        defended_root_raw = data.get("defended_root")
+        defended_root = _resolve_path_field(defended_root_raw) if defended_root_raw else None
         per_class_limit_int = (
             int(per_class_limit) if per_class_limit is not None else None
         )
@@ -124,6 +127,7 @@ class DatasetConfig:
             selection_seed=int(selection_seed) if selection_seed is not None else None,
             class_filter=list(class_filter) if class_filter is not None else None,
             per_class_limit=per_class_limit_int,
+            defended_root=defended_root,
             downloads=downloads,
         )
 

@@ -13,7 +13,7 @@ import numpy as np
 import torch
 
 from .config import ExperimentConfig, load_experiment_config
-from .data import build_dataloaders, sample_dataset
+from .data import DatasetSplits, Sample, build_dataloaders, sample_dataset
 from .data_prep import ensure_imagenet_trainset
 from .engine import run_baseline_resnet50_inference, train_model
 from .preprocess import prepare_defended_splits
@@ -129,6 +129,42 @@ def export_plan(path: Path, payload: Dict) -> None:
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
+def _apply_defended_root(
+    splits: DatasetSplits,
+    defended_root: Path | None,
+    source_root: Path,
+) -> tuple[DatasetSplits, bool]:
+    if defended_root is None:
+        return splits, False
+    defended_root = _resolve_dir(defended_root)
+    swapped = False
+    for split_name in ("train", "val", "test"):
+        original_samples = getattr(splits, split_name)
+        if not original_samples:
+            continue
+        new_samples = []
+        for sample in original_samples:
+            try:
+                relative = sample.path.relative_to(source_root)
+            except ValueError as exc:  # pragma: no cover - defensive
+                raise RuntimeError(
+                    f"Sample {sample.path} is not under dataset root {source_root}. "
+                    "Ensure dataset.defended_root was generated from the same source."
+                ) from exc
+            defended_path = defended_root / relative
+            if not defended_path.exists():
+                raise FileNotFoundError(
+                    f"Missing defended file {defended_path} for original sample {sample.path}. "
+                    "Regenerate the cache or disable dataset.defended_root."
+                )
+            new_samples.append(Sample(path=defended_path, label=sample.label, label_name=sample.label_name))
+        setattr(splits, split_name, new_samples)
+        swapped = True
+    if swapped:
+        splits.preprocessed = True
+    return splits, swapped
+
+
 def main() -> None:
     args = parse_args()
     cfg = load_experiment_config(args.experiment_config)
@@ -159,6 +195,7 @@ def main() -> None:
             "splits": split_counts,
             "imagenet_train_root": str(imagenet_train_root),
             "imagenet_val_root": str(imagenet_val_root),
+            "defended_root": str(cfg.dataset.defended_root) if cfg.dataset.defended_root else None,
         },
         "model": {
             "architecture": cfg.model.architecture,
@@ -203,10 +240,20 @@ def main() -> None:
     export_plan(run_dir / "plan.json", plan)
 
     dataset_splits = sample_dataset(cfg.dataset, imagenet_train_root)
+    dataset_splits, used_defense_cache = _apply_defended_root(
+        dataset_splits,
+        cfg.dataset.defended_root,
+        imagenet_train_root,
+    )
     split_summary = {split: len(getattr(dataset_splits, split)) for split in ("train", "val", "test")}
     with (run_dir / "dataset_split.json").open("w", encoding="utf-8") as handle:
         json.dump(split_summary, handle, indent=2)
-    defended_splits = prepare_defended_splits(dataset_splits, cfg.defenses.stack, run_dir / "defended")
+    if used_defense_cache:
+        if cfg.defenses.stack:
+            print("[info] dataset.defended_root set; skipping configured defenses and reusing cached images.")
+        defended_splits = dataset_splits
+    else:
+        defended_splits = prepare_defended_splits(dataset_splits, cfg.defenses.stack, run_dir / "defended")
     dataloaders = build_dataloaders(
         defended_splits,
         batch_size=cfg.training.batch_size,

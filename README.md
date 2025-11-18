@@ -76,6 +76,32 @@ This command will:
 - The CLI enforces deterministic sampling when `selection_seed` is set, making it
   easy to reproduce runs.
 
+## Caching Defended Datasets
+
+Some defenses (BM3D, R-SMOE) take a long time to run. You can precompute a defended
+subset once and reuse it across experiments:
+
+```bash
+python -m training.cache_defense \
+  --experiment-config configs/resnet50_transfer.yaml \
+  --imagenet-root /path/to/ILSVRC2012 \
+  --output-dir defended/jpeg_75_cache
+```
+
+This builds `defended/jpeg_75_cache/data/` with the resized+defended images (mirrors
+the original ImageNet directory layout) and writes metadata for reference. To reuse
+the cache:
+
+1. Point your experiment YAML at the cache by setting
+   `dataset.defended_root: defended/jpeg_75_cache/data`.
+2. Keep the original `defenses.stack` for documentation if you like, but the training
+   loop will automatically skip re-running defenses whenever `dataset.defended_root`
+   is present.
+
+You can still resample/split the cached images differently by tweaking
+`dataset.splits`, `per_class_limit`, etc., as long as the cache contains enough
+images per class.
+
 ## Troubleshooting
 
 - `advdef` command not found → ensure `pip install -e external/adv-it-defenses[dev]`
