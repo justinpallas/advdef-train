@@ -88,7 +88,7 @@ def _materialize_inputs(samples: List[Sample], inputs_dir: Path) -> List[Tuple[s
     for index, sample in enumerate(samples):
         alias = _sanitize_alias(f"{sample.label_name}_{index:06d}")
         extension = sample.path.suffix.lower() or ".jpg"
-        destination = inputs_dir / sample.label_name / f"{alias}{extension}"
+        destination = inputs_dir / f"{alias}{extension}"
         destination.parent.mkdir(parents=True, exist_ok=True)
         _prepare_for_defense(sample.path, destination)
         alias_map.append((alias, sample))
