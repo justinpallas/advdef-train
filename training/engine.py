@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 from contextlib import nullcontext
 from dataclasses import dataclass
+import textwrap
 from pathlib import Path
-from typing import Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 import torch
 from torch import nn
@@ -233,7 +234,7 @@ def train_model(
     with metrics_path.open("w", encoding="utf-8") as handle:
         json.dump([entry.to_dict() for entry in history], handle, indent=2)
 
-    _plot_history(history, run_dir)
+    _plot_history(history, run_dir, cfg, dataloaders)
 
     test_loader = dataloaders.get("test")
     if test_loader is not None:
@@ -323,7 +324,12 @@ def _evaluate(model: nn.Module, dataloader: DataLoader, criterion, device: torch
     return avg_loss, accuracy
 
 
-def _plot_history(history: Sequence[TrainMetrics], run_dir: Path) -> None:
+def _plot_history(
+    history: Sequence[TrainMetrics],
+    run_dir: Path,
+    cfg: ExperimentConfig,
+    dataloaders: Dict[str, Optional[DataLoader]],
+) -> None:
     try:
         import matplotlib.pyplot as plt
     except ImportError:  # pragma: no cover - fallback if matplotlib missing
@@ -341,7 +347,12 @@ def _plot_history(history: Sequence[TrainMetrics], run_dir: Path) -> None:
     val_epochs_acc, val_acc = _filter_series(history, lambda m: m.val_acc)
 
     plt.style.use("seaborn-v0_8")
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    fig, axes = plt.subplots(
+        1,
+        3,
+        figsize=(16, 4.5),
+        gridspec_kw={"width_ratios": [1, 1, 1.3]},
+    )
 
     axes[0].plot(epochs, train_loss, label="train")
     if val_loss:
@@ -359,6 +370,19 @@ def _plot_history(history: Sequence[TrainMetrics], run_dir: Path) -> None:
     axes[1].set_ylabel("Top-1 Accuracy")
     axes[1].legend()
 
+    axes[2].axis("off")
+    axes[2].set_title("Config")
+    summary_lines = _format_config_summary(cfg, dataloaders)
+    axes[2].text(
+        0,
+        1,
+        "\n".join(summary_lines),
+        ha="left",
+        va="top",
+        fontsize=9,
+        fontfamily="monospace",
+    )
+
     fig.tight_layout()
     plot_path = run_dir / "metrics.png"
     fig.savefig(plot_path)
@@ -374,6 +398,83 @@ def _filter_series(history: Sequence[TrainMetrics], selector):
             xs.append(entry.epoch)
             ys.append(value)
     return xs, ys
+
+
+def _format_config_summary(cfg: ExperimentConfig, dataloaders: Dict[str, Optional[DataLoader]]) -> list[str]:
+    split_sizes = {name: len(loader.dataset) if loader is not None else 0 for name, loader in dataloaders.items()}
+    defenses = _format_defenses(cfg.defenses.stack)
+    optimizer_details = _format_named_params(cfg.training.optimizer.name, cfg.training.optimizer.params)
+    scheduler_details = (
+        _format_named_params(cfg.training.scheduler.name, cfg.training.scheduler.params)
+        if cfg.training.scheduler
+        else "scheduler: none"
+    )
+    finetune = cfg.training.finetune
+    lines = [f"seed: {cfg.seed}"]
+    description = cfg.description.strip()
+    if description:
+        lines.extend(textwrap.wrap(f"desc: {description}", width=70))
+    lines.append(
+        f"dataset: {cfg.dataset.name} total={cfg.dataset.total_images} splits t/v/te="
+        f"{split_sizes.get('train', 0)}/{split_sizes.get('val', 0)}/{split_sizes.get('test', 0)}"
+    )
+    if cfg.dataset.defended_root:
+        lines.extend(textwrap.wrap(f"defended_root: {cfg.dataset.defended_root}", width=70))
+    lines.append(f"defenses: {defenses}")
+    lines.append(
+        f"model: {cfg.model.architecture} pretrained={cfg.model.pretrained} "
+        f"classes={cfg.model.num_classes} head_dropout={cfg.model.head_dropout}"
+    )
+    lines.append(
+        f"training: epochs={cfg.training.epochs} batch={cfg.training.batch_size} "
+        f"mixed_precision={cfg.training.mixed_precision}"
+    )
+    lines.append(
+        f"regularization: label_smoothing={cfg.training.label_smoothing} mixup_alpha={cfg.training.mixup_alpha}"
+    )
+    lines.append(
+        "finetune: "
+        f"freeze_backbone={finetune.freeze_backbone}, "
+        f"trainable={','.join(finetune.trainable_layers)}, "
+        f"reset_cls={finetune.reset_classifier}, "
+        f"freeze_bn={finetune.freeze_batchnorm}"
+    )
+    lines.append(optimizer_details)
+    lines.append(scheduler_details)
+    wrapped = []
+    for line in lines:
+        wrapped.extend(textwrap.wrap(line, width=70) or [""])
+    return wrapped
+
+
+def _format_defenses(defenses: Sequence) -> str:
+    if not defenses:
+        return "none"
+    parts = []
+    for defense in defenses:
+        params = _format_params(defense.params)
+        label = f"{defense.type}:{defense.name}"
+        if params:
+            label = f"{label} ({params})"
+        parts.append(label)
+    return "; ".join(parts)
+
+
+def _format_named_params(name: str, params: Dict[str, Any]) -> str:
+    prefix = f"{name.lower()}" if name else ""
+    param_str = _format_params(params)
+    if param_str:
+        return f"{prefix}: {param_str}"
+    return prefix or "none"
+
+
+def _format_params(params: Dict[str, Any]) -> str:
+    if not params:
+        return ""
+    joined = ", ".join(f"{key}={params[key]}" for key in sorted(params))
+    if len(joined) > 70:
+        joined = textwrap.shorten(joined, width=70, placeholder="…")
+    return joined
 
 
 def _apply_mixup(inputs: torch.Tensor, targets: torch.Tensor, alpha: float):
