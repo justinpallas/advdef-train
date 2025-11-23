@@ -347,12 +347,7 @@ def _plot_history(
     val_epochs_acc, val_acc = _filter_series(history, lambda m: m.val_acc)
 
     plt.style.use("seaborn-v0_8")
-    fig, axes = plt.subplots(
-        1,
-        3,
-        figsize=(16, 4.5),
-        gridspec_kw={"width_ratios": [1, 1, 1.3]},
-    )
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
 
     axes[0].plot(epochs, train_loss, label="train")
     if val_loss:
@@ -370,20 +365,18 @@ def _plot_history(
     axes[1].set_ylabel("Top-1 Accuracy")
     axes[1].legend()
 
-    axes[2].axis("off")
-    axes[2].set_title("Config")
     summary_lines = _format_config_summary(cfg, dataloaders)
-    axes[2].text(
-        0,
-        1,
+    fig.text(
+        0.01,
+        0.98,
         "\n".join(summary_lines),
         ha="left",
         va="top",
         fontsize=9,
         fontfamily="monospace",
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.85, "edgecolor": "#cccccc"},
     )
-
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0, 1, 0.82])
     plot_path = run_dir / "metrics.png"
     fig.savefig(plot_path)
     plt.close(fig)
@@ -410,41 +403,31 @@ def _format_config_summary(cfg: ExperimentConfig, dataloaders: Dict[str, Optiona
         else "scheduler: none"
     )
     finetune = cfg.training.finetune
-    lines = [f"seed: {cfg.seed}"]
-    description = cfg.description.strip()
-    if description:
-        lines.extend(textwrap.wrap(f"desc: {description}", width=70))
-    lines.append(
-        f"dataset: {cfg.dataset.name} total={cfg.dataset.total_images} splits t/v/te="
-        f"{split_sizes.get('train', 0)}/{split_sizes.get('val', 0)}/{split_sizes.get('test', 0)}"
+    model_bits = (
+        f"model={cfg.model.architecture} pretrained={cfg.model.pretrained} classes={cfg.model.num_classes}"
     )
+    if cfg.model.head_dropout > 0:
+        model_bits += f" head_dropout={cfg.model.head_dropout}"
+    lines = [
+        f"seed={cfg.seed} dataset={cfg.dataset.name} total={cfg.dataset.total_images} splits t/v/te="
+        f"{split_sizes.get('train', 0)}/{split_sizes.get('val', 0)}/{split_sizes.get('test', 0)}",
+        f"defenses: {defenses}",
+        model_bits,
+        f"training: epochs={cfg.training.epochs} batch={cfg.training.batch_size} mp={cfg.training.mixed_precision}",
+        f"optimizer: {optimizer_details}",
+        f"scheduler: {scheduler_details}",
+        (
+            "finetune: "
+            f"freeze_backbone={finetune.freeze_backbone} "
+            f"trainable={','.join(finetune.trainable_layers)} "
+            f"reset_cls={finetune.reset_classifier}"
+        ),
+        f"regularization: label_smoothing={cfg.training.label_smoothing} mixup_alpha={cfg.training.mixup_alpha}",
+    ]
     if cfg.dataset.defended_root:
-        lines.extend(textwrap.wrap(f"defended_root: {cfg.dataset.defended_root}", width=70))
-    lines.append(f"defenses: {defenses}")
-    lines.append(
-        f"model: {cfg.model.architecture} pretrained={cfg.model.pretrained} "
-        f"classes={cfg.model.num_classes} head_dropout={cfg.model.head_dropout}"
-    )
-    lines.append(
-        f"training: epochs={cfg.training.epochs} batch={cfg.training.batch_size} "
-        f"mixed_precision={cfg.training.mixed_precision}"
-    )
-    lines.append(
-        f"regularization: label_smoothing={cfg.training.label_smoothing} mixup_alpha={cfg.training.mixup_alpha}"
-    )
-    lines.append(
-        "finetune: "
-        f"freeze_backbone={finetune.freeze_backbone}, "
-        f"trainable={','.join(finetune.trainable_layers)}, "
-        f"reset_cls={finetune.reset_classifier}, "
-        f"freeze_bn={finetune.freeze_batchnorm}"
-    )
-    lines.append(optimizer_details)
-    lines.append(scheduler_details)
-    wrapped = []
-    for line in lines:
-        wrapped.extend(textwrap.wrap(line, width=70) or [""])
-    return wrapped
+        root = textwrap.shorten(str(cfg.dataset.defended_root), width=95, placeholder="…")
+        lines.append(f"defended_root: {root}")
+    return lines
 
 
 def _format_defenses(defenses: Sequence) -> str:
