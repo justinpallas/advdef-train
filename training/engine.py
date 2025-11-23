@@ -347,36 +347,43 @@ def _plot_history(
     val_epochs_acc, val_acc = _filter_series(history, lambda m: m.val_acc)
 
     plt.style.use("seaborn-v0_8")
-    fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
+    fig = plt.figure(figsize=(12.5, 6))
+    grid = fig.add_gridspec(2, 2, height_ratios=[3, 1], hspace=0.25, wspace=0.25)
 
-    axes[0].plot(epochs, train_loss, label="train")
+    ax_loss = fig.add_subplot(grid[0, 0])
+    ax_acc = fig.add_subplot(grid[0, 1])
+    ax_cfg = fig.add_subplot(grid[1, :])
+
+    ax_loss.plot(epochs, train_loss, label="train")
     if val_loss:
-        axes[0].plot(val_epochs_loss, val_loss, label="val")
-    axes[0].set_title("Loss")
-    axes[0].set_xlabel("Epoch")
-    axes[0].set_ylabel("Cross-Entropy")
-    axes[0].legend()
+        ax_loss.plot(val_epochs_loss, val_loss, label="val")
+    ax_loss.set_title("Loss")
+    ax_loss.set_xlabel("Epoch")
+    ax_loss.set_ylabel("Cross-Entropy")
+    ax_loss.legend()
 
-    axes[1].plot(epochs, train_acc, label="train")
+    ax_acc.plot(epochs, train_acc, label="train")
     if val_acc:
-        axes[1].plot(val_epochs_acc, val_acc, label="val")
-    axes[1].set_title("Accuracy")
-    axes[1].set_xlabel("Epoch")
-    axes[1].set_ylabel("Top-1 Accuracy")
-    axes[1].legend()
+        ax_acc.plot(val_epochs_acc, val_acc, label="val")
+    ax_acc.set_title("Accuracy")
+    ax_acc.set_xlabel("Epoch")
+    ax_acc.set_ylabel("Top-1 Accuracy")
+    ax_acc.legend()
 
     summary_lines = _format_config_summary(cfg, dataloaders)
-    fig.text(
-        0.01,
-        0.98,
+    ax_cfg.axis("off")
+    ax_cfg.set_title("Settings", loc="left")
+    ax_cfg.text(
+        0,
+        1,
         "\n".join(summary_lines),
         ha="left",
         va="top",
         fontsize=9,
         fontfamily="monospace",
-        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.85, "edgecolor": "#cccccc"},
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.82])
+
+    fig.tight_layout()
     plot_path = run_dir / "metrics.png"
     fig.savefig(plot_path)
     plt.close(fig)
@@ -427,7 +434,10 @@ def _format_config_summary(cfg: ExperimentConfig, dataloaders: Dict[str, Optiona
     if cfg.dataset.defended_root:
         root = textwrap.shorten(str(cfg.dataset.defended_root), width=95, placeholder="…")
         lines.append(f"defended_root: {root}")
-    return lines
+    wrapped: list[str] = []
+    for line in lines:
+        wrapped.extend(textwrap.wrap(line, width=110) or [""])
+    return wrapped
 
 
 def _format_defenses(defenses: Sequence) -> str:
@@ -455,8 +465,8 @@ def _format_params(params: Dict[str, Any]) -> str:
     if not params:
         return ""
     joined = ", ".join(f"{key}={params[key]}" for key in sorted(params))
-    if len(joined) > 70:
-        joined = textwrap.shorten(joined, width=70, placeholder="…")
+    if len(joined) > 90:
+        joined = textwrap.shorten(joined, width=90, placeholder="…")
     return joined
 
 
